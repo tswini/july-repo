@@ -1,0 +1,9 @@
+aws - create 2 s3 bucket: one in virginia + one in singapore
+Now upload one file from downloads in "teju-main" bucket
+
+go to management -> replica set -> 
+
+1. apply to all object buckets  
+2. Now in destination -> choose a bucket in this account -> IAM: create new role pr click krdo -> save
+
+now upload a png file in "teju-main" and now it will seen in "teju-replica"
