@@ -1,0 +1,187 @@
+provider "aws" {
+  region = "us-east-1"
+}
+
+
+resource "aws_vpc" "test-vpc" {
+  cidr_block = "10.0.0.0/16"
+}
+
+# this is Subnet code
+resource "aws_subnet" "public-subnet" {
+  vpc_id     = aws_vpc.test-vpc.id
+  cidr_block = "10.0.0.0/24"
+
+  tags = {
+    Name = "web-server"
+  }
+}
+
+
+resource "aws_subnet" "private-subnet" {
+  vpc_id     = aws_vpc.test-vpc.id
+  cidr_block = "10.0.1.0/24"
+
+  tags = {
+    Name = "dev-server"
+  }
+}
+resource "aws_security_group" "test_access" {
+  name        = "test_access"
+  vpc_id      = aws_vpc.test-vpc.id
+  description = "allow ssh and http"
+ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+
+}
+#internet gateway code
+resource "aws_internet_gateway" "test-igw" {
+  vpc_id = aws_vpc.test-vpc.id
+
+  tags = {
+    Name = "test-igw"
+  }
+}
+
+#Public route table code
+
+resource "aws_route_table" "public-rt" {
+  vpc_id = aws_vpc.test-vpc.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.test-igw.id
+  }
+
+
+  tags = {
+    Name = "public-rt"
+  }
+}
+
+#route Tatable assosication code
+
+resource "aws_route_table_association" "public-asso" {
+  subnet_id      = aws_subnet.public-subnet.id
+  route_table_id = aws_route_table.public-rt.id
+}
+
+#ec2 code
+
+resource "aws_instance" "vpc-server" {
+  ami             = "ami-0b72821e2f351e396"
+  subnet_id       = aws_subnet.public-subnet.id
+  instance_type   = "t2.micro"
+  security_groups = ["${aws_security_group.test_access.id}"]
+  key_name        = "terra.key"
+  tags = {
+    Name     = "web-server"
+    Stage    = "testing"
+    Location = "mumbai"
+  }
+
+ }
+
+##create an EIP for EC2
+resource "aws_eip" "vpc-ec2-eip" {
+  instance = aws_instance.vpc-server.id
+}
+
+#ssh keypair code
+resource "aws_key_pair" "terra-key" {
+  key_name   = "terra.key"
+  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDSoeHoNOHlpzzVOc+52WB0c61Bnqe5m/196hTwUl8xSjRvTL3rc8SZST142/zcKWPnrPvXqEIEshde7TYYEfOjx4ubAP4kA1VqIaFZMI9SurhYd7/4MfjyGSybP9lyGC1ctAGEe7iYCtdxJSlqyBTVdjY1EcTEQ71D1WikZ9VAkajMbkNEIzDsKI6i98jjitzDRTd6eyND3aluHKw5AvBRCOb9SZUmU4LZxOiKf6zMRiacITRJ2/0dmPO6F7KZrkryGARK20kce6wXPEI6DvJ1Ike6bR9q171uJ5gr6TE9m4UHQ8emLZtwHDqp5QzirhrgGZ1YDxqJl9l83Kbp/EidKjSPRtH2BokdJOX5GfPi5VnZZryvPY+WWMLzIln5OvqQpUtNDw5ESdKD+ijktJVdbs2RzXKmqm6KcsLfv8WNQJz+IW79MpMGqCfT+lmGh+g7czAY178eeZp0BWL63oF6XIiLq0BTLosS6tT1HqCnLzt0n2/xs61pkLiuwYOsv80= root@ip-172-31-34-82.ap-northeast-1.compute.internal"
+}
+
+###this is database ec2 code
+
+resource "aws_instance" "database-server" {
+  ami             = "ami-0b72821e2f351e396"
+  subnet_id       = aws_subnet.private-subnet.id
+  instance_type   = "t2.micro"
+  security_groups = ["${aws_security_group.test_access.id}"]
+  key_name        = "terra.key"
+  tags = {
+    Name     = "dev-server"
+    Stage    = "stage-base"
+    Location = "mumbai"
+  }
+
+}
+##create a public ip for Nat gateway
+resource "aws_eip" "nat-eip" {
+}
+### create Nat gateway
+resource "aws_nat_gateway" "my-ngw" {
+  allocation_id = aws_eip.nat-eip.id
+  subnet_id     = aws_subnet.public-subnet.id
+}
+
+#create private route table
+resource "aws_route_table" "private-rt" {
+  vpc_id = aws_vpc.test-vpc.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_nat_gateway.my-ngw.id
+  }
+
+
+  tags = {
+    Name = "private-rt"
+  }
+}
+##route Tatable assosication code
+resource "aws_route_table_association" "private-asso" {
+  subnet_id      = aws_subnet.private-subnet.id
+  route_table_id = aws_route_table.private-rt.id
+}
+
+
+
+
+    1  yum install -y yum-utils
+    2  yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+    3  yum -y install terraform
+    4  yum install zip -y
+    5  curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" unzip awscliv2.zip
+    6  curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    7  unzip awscliv2.zip
+    8  sudo ./aws/install
+    9  yum install vim
+   10  mkdir /project
+   11  cd /project
+   12  export AWS_ACCESS_KEY_ID=""
+   13  export AWS_SECRET_ACCESS_KEY=""
+   14  ssh-keygen
+   15  ssh-keygen -f terra.key
+   16  ll
+   17  cat terra.key.pub
+   18  vim provider.tf
+   19  terraform init
+   20  teraaform plan
+   21  terraform plan
+   22  terraform apply
+   23  vim provider.tf
+   24  terraform apply
+   25  vim provider.tf
+   26  cat provider.tf
