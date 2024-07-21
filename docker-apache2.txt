@@ -1,0 +1,17 @@
+yum install docker* -y
+systemctl start docker
+systemctl enable docker
+docker pull ubuntu/apache2
+docker volume create my-storage
+docker volume ls
+ 
+docker run -it --name apache-app -p 8080:80 -v my-storage:/var/www/html ubuntu/apache2 /bin/bash
+ 
+apt-get update -y
+cd /var/www/html/
+ll
+apt install vim
+vim index.html [here remove all the content and write aany single line]
+service apache2 start
+ 
+now paste the public ip with port 8080
