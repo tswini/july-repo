@@ -1,0 +1,10 @@
+docker install
+awscli install
+kubectl install
+aws configure 
+ssh-keygen
+cluster create 
+public ecr repo created
+ecr push img
+deployment file
+service file
